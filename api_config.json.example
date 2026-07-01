@@ -1,0 +1,28 @@
+{
+  "endpoints": [
+    {
+      "type": "gemini",
+      "api_key": "AIzaSyYourGeminiKey1...",
+      "model": "gemini-2.5-flash",
+      "base_url": "https://generativelanguage.googleapis.com"
+    },
+    {
+      "type": "gemini",
+      "api_key": "AIzaSyYourGeminiKey2...",
+      "model": "gemini-2.5-flash",
+      "base_url": "https://generativelanguage.googleapis.com"
+    },
+    {
+      "type": "openai-compatible",
+      "api_key": "sk-or-v1-YourOpenRouterKey...",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "google/gemini-2.5-flash"
+    },
+    {
+      "type": "openai-compatible",
+      "api_key": "your-deepseek-api-key",
+      "base_url": "https://api.deepseek.com/v1",
+      "model": "deepseek-chat"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+*.log
+*.sqlite*
+state.json
+goctoiphapluat_state.json
+goctoiphapluat-state.json
+node_modules/
+.npm/
+/tmp/
+user_oauth2.json
+service_account.json
+credentials.json
+*.pyc
+__pycache__/
+api_config.json
+config.json
+

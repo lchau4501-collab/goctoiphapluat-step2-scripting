@@ -1,0 +1,15 @@
+name = "goc-toi-phap-luat-orchestrator"
+main = "src/index.js"
+compatibility_date = "2026-06-28"
+
+[triggers]
+crons = [ "1 17 * * *" ] # Run daily at 00:01 ICT (17:01 UTC)
+
+[ai]
+binding = "AI"
+
+[vars]
+GDRIVE_PARENT_FOLDER_ID = "1BABIF2g-U6RqAgNyjs7hOACOiPmFvYPC"
+SPREADSHEET_ID = "1FXYJOhyMxNpUNYpLf5O6Tf6UehI1ulHa_B8HzwTkmdM"
+GITHUB_OWNER = "lchau4501-collab"
+

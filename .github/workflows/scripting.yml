@@ -1,0 +1,123 @@
+name: Step 2 - Scripting via ainovel-cli
+
+on:
+  repository_dispatch:
+    types: [run-scripting]
+  workflow_dispatch:
+
+jobs:
+  write-script:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Google Sheets dependencies
+        run: |
+          pip install gspread google-auth google-api-python-client
+
+      - name: Fetch Target Row from GSheet
+        env:
+          GS_TOKEN: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_TOKEN }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+        run: |
+          if [ -z "${{ github.event.client_payload.id }}" ]; then
+            echo "RUN_MODE=cron" >> $GITHUB_ENV
+          else
+            echo "RUN_MODE=single" >> $GITHUB_ENV
+            echo "EPISODE_ID=${{ github.event.client_payload.id }}" >> $GITHUB_ENV
+            echo "ROW_ID=${{ github.event.client_payload.id }}" >> $GITHUB_ENV
+            echo "PROMPT=${{ github.event.client_payload.prompt }}" >> $GITHUB_ENV
+          fi
+
+      - name: Download ainovel-cli
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/voocel/ainovel-cli/main/scripts/install.sh | AINOVEL_INSTALL_DIR=. sh
+
+      - name: Setup API Configuration
+        env:
+          GATEWAY_TOKEN: ${{ secrets.GATEWAY_TOKEN }}
+          GATEWAY_URL: ${{ secrets.GATEWAY_URL }}
+          GATEWAY_MODEL: ${{ secrets.GATEWAY_MODEL }}
+        run: |
+          mkdir -p ~/.ainovel/
+          cat <<EOF > ~/.ainovel/config.json
+          {
+            "provider": "openrouter",
+            "model": "${GATEWAY_MODEL:-google/gemini-2.5-flash}",
+            "genre": "goc-toi-phap-luat",
+            "providers": {
+              "openrouter": {
+                "api_key": "$GATEWAY_TOKEN",
+                "base_url": "$GATEWAY_URL"
+              }
+            }
+          }
+          EOF
+          cp ~/.ainovel/config.json config.json
+
+      - name: Copy Style Rules
+        run: |
+          mkdir -p .ainovel/rules/
+          cp -r ./rules/goc-toi-phap-luat.md .ainovel/rules/goc-toi-phap-luat.md 2>/dev/null || true
+
+      - name: Run Scripting headless
+        if: env.RUN_MODE == 'single'
+        run: |
+          ./ainovel-cli --headless --prompt "${{ env.PROMPT }}"
+
+      - name: Post-process Chapters
+        if: env.RUN_MODE == 'single'
+        id: post_process
+        run: |
+          python scripts/post_process.py
+
+      - name: Upload to Google Docs & Update GSheet
+        if: env.RUN_MODE == 'single'
+        env:
+          GS_TOKEN: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_TOKEN }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          ROW_ID: ${{ env.EPISODE_ID }}
+        run: |
+          python scripts/upload_gdrive.py
+
+      - name: Trigger Step 3 - Prompts Workflow
+        if: env.RUN_MODE == 'single'
+        run: |
+          curl -H "Authorization: token ${{ secrets.GH_PAT }}" \
+               -H "Accept: application/vnd.github.v3+json" \
+               -X POST \
+               -d '{"event_type": "run-prompts", "client_payload": {"id": "${{ env.EPISODE_ID }}"}}' \
+               https://api.github.com/repos/${{ github.repository_owner }}/goctoiphapluat-step3-prompts/dispatches
+
+      - name: Run Step 2 Cron
+        if: env.RUN_MODE == 'cron'
+        env:
+          GS_TOKEN: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_TOKEN }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          GATEWAY_TOKEN: ${{ secrets.GATEWAY_TOKEN }}
+          GATEWAY_URL: ${{ secrets.GATEWAY_URL }}
+          GATEWAY_MODEL: ${{ secrets.GATEWAY_MODEL }}
+        run: |
+          python scripts/run_step2_gha_cron.py
+
+      - name: Handle Step 2 Failure
+        if: failure() && env.RUN_MODE == 'single'
+        env:
+          GS_TOKEN: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_TOKEN }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          EPISODE_ID: ${{ env.EPISODE_ID }}
+          STATUS: "step2failed"
+        run: |
+          python scripts/update_status.py
+

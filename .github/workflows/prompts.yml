@@ -1,0 +1,84 @@
+name: Step 3 - Image Prompts Generation
+
+on:
+  repository_dispatch:
+    types: [run-prompts]
+  workflow_dispatch:
+
+jobs:
+  generate-prompts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install requests gspread google-auth google-api-python-client
+
+      - name: Fetch Target Row from GSheet
+        env:
+          GS_TOKEN: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_TOKEN }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+        run: |
+          if [ -z "${{ github.event.client_payload.id }}" ]; then
+            echo "RUN_MODE=cron" >> $GITHUB_ENV
+          else
+            echo "RUN_MODE=single" >> $GITHUB_ENV
+            echo "EPISODE_ID=${{ github.event.client_payload.id }}" >> $GITHUB_ENV
+          fi
+
+      - name: Download Script GDoc
+        if: env.RUN_MODE == 'single'
+        env:
+          GS_TOKEN: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_TOKEN }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          EPISODE_ID: ${{ env.EPISODE_ID }}
+        run: |
+          python scripts/download_script.py
+
+      - name: Generate Prompts per Paragraph
+        if: env.RUN_MODE == 'single'
+        env:
+          GS_TOKEN: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_TOKEN }}
+          GATEWAY_URL: ${{ secrets.GATEWAY_URL }}
+          GATEWAY_TOKEN: ${{ secrets.GATEWAY_TOKEN }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          EPISODE_ID: ${{ env.EPISODE_ID }}
+        run: |
+          python scripts/generate_prompts.py
+
+      - name: Update Master Status
+        if: env.RUN_MODE == 'single'
+        env:
+          GS_TOKEN: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_TOKEN }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          EPISODE_ID: ${{ env.EPISODE_ID }}
+        run: |
+          python scripts/update_status.py
+
+      - name: Run Step 3 Cron
+        if: env.RUN_MODE == 'cron'
+        env:
+          GS_TOKEN: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_TOKEN }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          GATEWAY_URL: ${{ secrets.GATEWAY_URL }}
+          GATEWAY_TOKEN: ${{ secrets.GATEWAY_TOKEN }}
+          GATEWAY_MODEL: ${{ secrets.GATEWAY_MODEL }}
+        run: |
+          python scripts/run_step3_gha_cron.py
+
+      - name: Handle Step 3 Failure
+        if: failure() && env.RUN_MODE == 'single'
+        env:
+          GS_TOKEN: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_TOKEN }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          EPISODE_ID: ${{ env.EPISODE_ID }}
+          STATUS: "step3failed"
+        run: |
+          python scripts/update_status.py

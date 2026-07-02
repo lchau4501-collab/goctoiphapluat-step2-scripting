@@ -51,7 +51,8 @@ def main():
         logger.info("No rows with status 'script' found. Exiting.")
         sys.exit(0)
         
-    logger.info(f"Found {len(script_rows)} rows with status 'script'. Starting prompt generation...")
+    logger.info(f"Found {len(script_rows)} rows with status 'script'. Limiting prompt generation to first 2 rows...")
+    script_rows = script_rows[:2]
     
     for idx, r in script_rows:
         episode_id = r[id_col]

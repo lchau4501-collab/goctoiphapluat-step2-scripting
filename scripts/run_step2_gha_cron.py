@@ -45,7 +45,8 @@ def main():
         logger.info("No rows with status 'pending' found. Exiting.")
         sys.exit(0)
         
-    logger.info(f"Found {len(pending_rows)} rows with status 'pending'. Starting execution...")
+    logger.info(f"Found {len(pending_rows)} rows with status 'pending'. Limiting execution to first 2 rows...")
+    pending_rows = pending_rows[:2]
     
     for idx, r in pending_rows:
         episode_id = r[id_col]
